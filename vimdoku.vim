@@ -209,11 +209,12 @@ function! s:updateHighlights(rowsStatus, colsStatus, boxesStatus)
 
 	" Update col highlights
 	for i in range(0, s:colCount - 1)
-		if get(s:colHighlights, i, 0) == 0 && get(a:colsStatus, i, 1) == 1
+		if get(s:colHighlights, i, []) == [] && get(a:colsStatus, i, 1) == 1
 			let s:colHighlights[i] = <SID>highlightCol(i)
-		elseif get(s:colHighlights, i, 0) != 0 && get(a:colsStatus, i, 1) == 0
-			call matchdelete(s:colHighlights[i])
-			let s:colHighlights[i] = 0
+		elseif get(s:colHighlights, i, []) != [] && get(a:colsStatus, i, 1) == 0
+			call matchdelete(s:colHighlights[i][0])
+			call matchdelete(s:colHighlights[i][1])
+			let s:colHighlights[i] = []
 		endif
 	endfor
 
@@ -238,9 +239,6 @@ function! s:highlightRow(index)
 endfunction
 
 function! s:highlightCol(index)
-	" TODO: Handle the matchaddpos() limitation of handling only up to
-	" 	8 positions
-
 	let [l:startX, l:startY] = <SID>mapFieldIndexToBufferPos([a:index, 0])
 	let l:endY = <SID>mapFieldIndexToBufferPos([a:index, s:rowCount - 1])[1]
 	let l:positions = []
@@ -249,7 +247,8 @@ function! s:highlightCol(index)
 		let l:positions = add(l:positions, [y, l:startX, 1])
 	endfor
 
-	return matchaddpos("Valid", l:positions)
+	return [matchaddpos("Valid", l:positions[:((l:endY - l:startY) / 2)]),
+		\ matchaddpos("Valid", l:positions[((l:endY - l:startY) / 2):])]
 endfunction
 
 function! s:highlightBox(index)
