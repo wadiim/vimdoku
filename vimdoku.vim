@@ -106,6 +106,16 @@ function! s:getValues()
 	return l:values
 endfunction
 
+function! s:setFieldValue(index, value)
+	let save_cursor = getcurpos()
+
+	let l:pos = <SID>mapFieldIndexToBufferPos(a:index)
+	call <SID>setCursorPos(l:pos)
+	execute "normal! r" .. a:value
+
+	call setpos('.', save_cursor)
+endfunction
+
 function! s:findNextEmptyField(values, ...)
 	let [l:x, l:y] = get(a:, 1, [0, 0])
 
@@ -134,9 +144,17 @@ function! s:getBoxFieldIndexes(boxIndex)
 endfunction
 
 function! s:Validate(values)
-	" TODO: Add individual values validation testing if they belong to
-	" 	the set of valid values, i.e. they are either '#' or
-	" 	integers between 1 and 9.
+	" Handle invalid characters
+	for y in range(0, s:rowCount - 1)
+		for x in range(0, s:colCount - 1)
+			if a:values[y][x] != '#' && (a:values[y][x] < 1 || a:values[y][x] > 9)
+				echohl ErrorMsg
+				echomsg "Invalid value '" .. a:values[y][x] .. "'"
+				echohl None
+				call <SID>setFieldValue([x, y], '#')
+			endif
+		endfor
+	endfor
 
 	let l:rowsStatus = {}
 	for i in range(0, s:rowCount - 1)
