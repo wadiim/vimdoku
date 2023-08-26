@@ -68,11 +68,11 @@ function! s:drawVerticalSeparator()
 	execute "normal! A+-\<esc>yl6pF+yg_$2pA+\<esc>"
 endfunction
 
-function! s:mapFieldIndexToBufferPos(pos)
-	let l:row = s:topOffset + a:pos[1] + (a:pos[1] / 3) + 2
-	let l:col = s:leftOffset + 2*a:pos[0] + 2*(a:pos[0] / 3) + 3
+function! s:mapFieldIndexToBufferPos(index)
+	let l:y = s:topOffset + a:index[1] + (a:index[1] / 3) + 2
+	let l:x = s:leftOffset + 2*a:index[0] + 2*(a:index[0] / 3) + 3
 
-	return [l:col, l:row]
+	return [l:x, l:y]
 endfunction
 
 function! s:addPlaceholders()
@@ -143,7 +143,7 @@ function! s:getBoxFieldIndexes(boxIndex)
 	return l:indexes
 endfunction
 
-function! s:Validate(values)
+function! s:validate(values)
 	" Handle invalid characters
 	for y in range(0, s:rowCount - 1)
 		for x in range(0, s:colCount - 1)
@@ -324,4 +324,4 @@ endfunction
 
 call <SID>init()
 
-command Validate call <SID>Validate(<SID>getValues())
+command Validate call <SID>validate(<SID>getValues())
