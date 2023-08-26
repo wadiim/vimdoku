@@ -21,11 +21,17 @@ function! s:init()
 	highlight Valid ctermbg=green guibg=green
 	highlight Invalid ctermbg=red guibg=red
 
-	let l:acmd = {}
-	let l:acmd.bufnr = bufnr("%")
-	let l:acmd.event = ['TextChanged', 'TextChangedI']
-	let l:acmd.cmd = 'Validate'
-	call autocmd_add([l:acmd])
+	let l:onTextChanged = {}
+	let l:onTextChanged.bufnr = bufnr("%")
+	let l:onTextChanged.event = ['TextChanged', 'TextChangedI']
+	let l:onTextChanged.cmd = 'Validate'
+
+	let l:onBufLeave = {}
+	let l:onBufLeave.bufnr = bufnr("%")
+	let l:onBufLeave.event = ['BufLeave']
+	let l:onBufLeave.cmd = 'call clearmatches()'
+
+	call autocmd_add([l:onTextChanged, l:onBufLeave])
 
 	call <SID>drawBoard()
 	call <SID>addPlaceholders()
