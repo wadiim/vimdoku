@@ -16,6 +16,7 @@ function! s:init()
 	let s:rowHighlights = {}
 	let s:colHighlights = {}
 	let s:boxHighlights = {}
+	let s:dupHighlights = {}
 
 	highlight Valid ctermbg=green guibg=green
 	highlight Invalid ctermbg=red guibg=red
@@ -137,6 +138,10 @@ function! s:Validate(values)
 	endfor
 	let l:colsStatus = copy(l:rowsStatus)
 	let l:boxesStatus = copy(l:rowsStatus)
+	let l:fieldsStatus = {}
+	for i in range(0, s:rowCount*s:colCount - 1)
+		let l:fieldsStatus[i] = 1
+	endfor
 
 	" Check horizontally
 	for y in range(0, s:rowCount - 1)
@@ -150,6 +155,11 @@ function! s:Validate(values)
 			endif
 		endfor
 		for i in range(1, 9)
+			if len(get(l:occurences, i, 0)) > 1
+				for [l:fx, l:fy] in l:occurences[i]
+					let l:fieldsStatus[l:fy*s:colCount + l:fx] = 0
+				endfor
+			endif
 			if ! has_key(l:occurences, i) || len(l:occurences[i]) > 1
 				let l:rowsStatus[l:y] = 0
 			endif
@@ -168,6 +178,11 @@ function! s:Validate(values)
 			endif
 		endfor
 		for i in range(1, 9)
+			if len(get(l:occurences, i, 0)) > 1
+				for [l:fx, l:fy] in l:occurences[i]
+					let l:fieldsStatus[l:fy*s:colCount + l:fx] = 0
+				endfor
+			endif
 			if ! has_key(l:occurences, i) || len(l:occurences[i]) > 1
 				let l:colsStatus[l:x] = 0
 			endif
@@ -187,16 +202,21 @@ function! s:Validate(values)
 			endif
 		endfor
 		for i in range(1, 9)
+			if len(get(l:occurences, i, 0)) > 1
+				for [l:fx, l:fy] in l:occurences[i]
+					let l:fieldsStatus[l:fy*s:colCount + l:fx] = 0
+				endfor
+			endif
 			if ! has_key(l:occurences, i) || len(l:occurences[i]) > 1
 				let l:boxesStatus[boxIndex] = 0
 			endif
 		endfor
 	endfor
 
-	call <SID>updateHighlights(l:rowsStatus, l:colsStatus, l:boxesStatus)
+	call <SID>updateHighlights(l:rowsStatus, l:colsStatus, l:boxesStatus, l:fieldsStatus)
 endfunction
 
-function! s:updateHighlights(rowsStatus, colsStatus, boxesStatus)
+function! s:updateHighlights(rowsStatus, colsStatus, boxesStatus, fieldsStatus)
 	" Update row highlights
 	for i in range(0, s:rowCount - 1)
 		if get(s:rowHighlights, i, 0) == 0 && get(a:rowsStatus, i, 1) == 1
@@ -228,7 +248,15 @@ function! s:updateHighlights(rowsStatus, colsStatus, boxesStatus)
 		endif
 	endfor
 
-	" TODO: Add highlighting of duplicates
+	" Update highlights of duplicates
+	for i in range(0, s:rowCount*s:colCount - 1)
+		if get(s:dupHighlights, i, 0) == 0 && get(a:fieldsStatus, i, 1) == 0
+			let s:dupHighlights[i] = <SID>highlightField(i % s:colCount, i / s:colCount)
+		elseif get(s:dupHighlights, i, 0) != 0 && get(a:fieldsStatus, i, 1) == 1
+			call matchdelete(s:dupHighlights[i])
+			let s:dupHighlights[i] = 0
+		endif
+	endfor
 endfunction
 
 function! s:highlightRow(index)
@@ -263,6 +291,11 @@ function! s:highlightBox(index)
 	endfor
 
 	return matchaddpos("Valid", l:positions)
+endfunction
+
+function! s:highlightField(x, y)
+	let [l:x, l:y] = <SID>mapFieldIndexToBufferPos([a:x, a:y])
+	return matchaddpos("Invalid", [[l:y, l:x, 1]])
 endfunction
 
 call <SID>init()
