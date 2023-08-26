@@ -242,43 +242,51 @@ endfunction
 
 function! s:updateHighlights(rowsStatus, colsStatus, boxesStatus, fieldsStatus)
 	" Update row highlights
-	for i in range(0, s:rowCount - 1)
-		if get(s:rowHighlights, i, 0) == 0 && get(a:rowsStatus, i, 1) == 1
-			let s:rowHighlights[i] = <SID>highlightRow(i)
-		elseif get(s:rowHighlights, i, 0) != 0 && get(a:rowsStatus, i, 1) == 0
-			call matchdelete(s:rowHighlights[i])
-			let s:rowHighlights[i] = 0
-		endif
-	endfor
+	call <SID>updateComponentHighlights(
+				\ s:rowCount,
+				\ s:rowHighlights,
+				\ a:rowsStatus,
+				\ 1,
+				\ '<SID>highlightRow',
+				\ {i -> i})
 
 	" Update col highlights
-	for i in range(0, s:colCount - 1)
-		if get(s:colHighlights, i, []) == [] && get(a:colsStatus, i, 1) == 1
-			let s:colHighlights[i] = <SID>highlightCol(i)
-		elseif get(s:colHighlights, i, []) != [] && get(a:colsStatus, i, 1) == 0
-			call matchdelete(s:colHighlights[i][0])
-			call matchdelete(s:colHighlights[i][1])
-			let s:colHighlights[i] = []
-		endif
-	endfor
+	call <SID>updateComponentHighlights(
+				\ s:colCount,
+				\ s:colHighlights,
+				\ a:colsStatus,
+				\ 1,
+				\ '<SID>highlightCol',
+				\ {i -> i})
 
 	" Update box highlights
-	for i in range(0, s:boxCount - 1)
-		if get(s:boxHighlights, i, 0) == 0 && get(a:boxesStatus, i, 1) == 1
-			let s:boxHighlights[i] = <SID>highlightBox(i)
-		elseif get(s:boxHighlights, i, 0) != 0 && get(a:boxesStatus, i, 1) == 0
-			call matchdelete(s:boxHighlights[i])
-			let s:boxHighlights[i] = 0
-		endif
-	endfor
+	call <SID>updateComponentHighlights(
+				\ s:boxCount,
+				\ s:boxHighlights,
+				\ a:boxesStatus,
+				\ 1,
+				\ '<SID>highlightBox',
+				\ {i -> i})
 
 	" Update highlights of duplicates
-	for i in range(0, s:rowCount*s:colCount - 1)
-		if get(s:dupHighlights, i, 0) == 0 && get(a:fieldsStatus, i, 1) == 0
-			let s:dupHighlights[i] = <SID>highlightField(i % s:colCount, i / s:colCount)
-		elseif get(s:dupHighlights, i, 0) != 0 && get(a:fieldsStatus, i, 1) == 1
-			call matchdelete(s:dupHighlights[i])
-			let s:dupHighlights[i] = 0
+	call <SID>updateComponentHighlights(
+				\ s:rowCount * s:colCount,
+				\ s:dupHighlights,
+				\ a:fieldsStatus,
+				\ 0,
+				\ '<SID>highlightField',
+				\ {i -> [i % s:colCount, i / s:colCount]})
+endfunction
+
+function! s:updateComponentHighlights(size, highlights, status, hlReq, hlMethodRef, idxMap)
+	for i in range(0, a:size - 1)
+		if get(a:highlights, i, []) == [] && get(a:status, i, 1) == a:hlReq
+			let a:highlights[i] = function(a:hlMethodRef)(a:idxMap(i))
+		elseif get(a:highlights, i, []) != [] && get(a:status, i, 1) != a:hlReq
+			for hl in a:highlights[i]
+				call matchdelete(hl)
+			endfor
+			let a:highlights[i] = []
 		endif
 	endfor
 endfunction
@@ -287,7 +295,7 @@ function! s:highlightRow(index)
 	let [l:x, l:y] = <SID>mapFieldIndexToBufferPos([0, a:index])
 	let l:bytes = s:width - 4
 
-	return matchaddpos("Valid", [[l:y, l:x, l:bytes]])
+	return [matchaddpos("Valid", [[l:y, l:x, l:bytes]])]
 endfunction
 
 function! s:highlightCol(index)
@@ -314,12 +322,12 @@ function! s:highlightBox(index)
 		let l:y += 1
 	endfor
 
-	return matchaddpos("Valid", l:positions)
+	return [matchaddpos("Valid", l:positions)]
 endfunction
 
-function! s:highlightField(x, y)
-	let [l:x, l:y] = <SID>mapFieldIndexToBufferPos([a:x, a:y])
-	return matchaddpos("Invalid", [[l:y, l:x, 1]])
+function! s:highlightField(index)
+	let [l:x, l:y] = <SID>mapFieldIndexToBufferPos(a:index)
+	return [matchaddpos("Invalid", [[l:y, l:x, 1]])]
 endfunction
 
 call <SID>init()
