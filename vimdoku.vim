@@ -130,6 +130,28 @@ function! s:findNextEmptyField(values, ...)
 	return [l:x, l:y]
 endfunction
 
+function! s:getRowFieldIndexes(rowIndex)
+	let [l:x, l:y] = [0, a:rowIndex]
+	let l:indexes = []
+
+	for dx in range(0, s:rowCount - 1)
+		let l:indexes = add(l:indexes, [l:x + dx, l:y])
+	endfor
+
+	return l:indexes
+endfunction
+
+function! s:getColFieldIndexes(colIndex)
+	let [l:x, l:y] = [a:colIndex, 0]
+	let l:indexes = []
+
+	for dy in range(0, s:colCount - 1)
+		let l:indexes = add(l:indexes, [l:x, l:y + dy])
+	endfor
+
+	return l:indexes
+endfunction
+
 function! s:getBoxFieldIndexes(boxIndex)
 	let [l:x, l:y] = [3 * (a:boxIndex % 3), 3 * (a:boxIndex / 3)]
 	let l:indexes = []
@@ -156,68 +178,44 @@ function! s:validate(values)
 		endfor
 	endfor
 
-	let l:rowsStatus = {}
-	for i in range(0, s:rowCount - 1)
-		let l:rowsStatus[i] = 1
-	endfor
-	let l:colsStatus = copy(l:rowsStatus)
-	let l:boxesStatus = copy(l:rowsStatus)
 	let l:fieldsStatus = {}
 	for i in range(0, s:rowCount*s:colCount - 1)
 		let l:fieldsStatus[i] = 1
 	endfor
 
 	" Check horizontally
-	for y in range(0, s:rowCount - 1)
-		let l:occurences = {}
-		for x in range(0, s:colCount - 1)
-			let l:val = a:values[l:y][l:x]
-			if ! has_key(l:occurences, l:val)
-				let l:occurences[l:val] = [[l:x, l:y]]
-			else
-				let l:occurences[l:val] = add(l:occurences[l:val], [l:x, l:y])
-			endif
-		endfor
-		for i in range(1, 9)
-			if len(get(l:occurences, i, 0)) > 1
-				for [l:fx, l:fy] in l:occurences[i]
-					let l:fieldsStatus[l:fy*s:colCount + l:fx] = 0
-				endfor
-			endif
-			if ! has_key(l:occurences, i) || len(l:occurences[i]) > 1
-				let l:rowsStatus[l:y] = 0
-			endif
-		endfor
-	endfor
+	let l:rowsStatus = <SID>validateComponent(
+				\ a:values,
+				\ s:rowCount,
+				\ '<SID>getRowFieldIndexes',
+				\ l:fieldsStatus)
 
 	" Check vertically
-	for x in range(0, s:colCount - 1)
-		let l:occurences = {}
-		for y in range(0, s:rowCount - 1)
-			let l:val = a:values[l:y][l:x]
-			if ! has_key(l:occurences, l:val)
-				let l:occurences[l:val] = [[l:x, l:y]]
-			else
-				let l:occurences[l:val] = add(l:occurences[l:val], [l:x, l:y])
-			endif
-		endfor
-		for i in range(1, 9)
-			if len(get(l:occurences, i, 0)) > 1
-				for [l:fx, l:fy] in l:occurences[i]
-					let l:fieldsStatus[l:fy*s:colCount + l:fx] = 0
-				endfor
-			endif
-			if ! has_key(l:occurences, i) || len(l:occurences[i]) > 1
-				let l:colsStatus[l:x] = 0
-			endif
-		endfor
-	endfor
+	let l:colsStatus = <SID>validateComponent(
+				\ a:values,
+				\ s:colCount,
+				\ '<SID>getColFieldIndexes',
+				\ l:fieldsStatus)
 
 	" Check boxes
-	for boxIndex in range(0, s:boxCount - 1)
+	let l:boxesStatus = <SID>validateComponent(
+				\ a:values,
+				\ s:boxCount,
+				\ '<SID>getBoxFieldIndexes',
+				\ l:fieldsStatus)
+
+	call <SID>updateHighlights(l:rowsStatus, l:colsStatus, l:boxesStatus, l:fieldsStatus)
+endfunction
+
+function! s:validateComponent(values, count, indexGenerator, fieldsStatus)
+	let l:compStatus = {}
+	for i in range(0, a:count - 1)
+		let l:compStatus[i] = 1
+	endfor
+
+	for compIndex in range(0, a:count - 1)
 		let l:occurences = {}
-		for fieldIndex in <SID>getBoxFieldIndexes(boxIndex)
-			let [l:x, l:y] = fieldIndex
+		for [l:x, l:y] in function(a:indexGenerator)(compIndex)
 			let l:val = a:values[l:y][l:x]
 			if ! has_key(l:occurences, l:val)
 				let l:occurences[l:val] = [[l:x, l:y]]
@@ -228,16 +226,16 @@ function! s:validate(values)
 		for i in range(1, 9)
 			if len(get(l:occurences, i, 0)) > 1
 				for [l:fx, l:fy] in l:occurences[i]
-					let l:fieldsStatus[l:fy*s:colCount + l:fx] = 0
+					let a:fieldsStatus[l:fy*s:colCount + l:fx] = 0
 				endfor
 			endif
 			if ! has_key(l:occurences, i) || len(l:occurences[i]) > 1
-				let l:boxesStatus[boxIndex] = 0
+				let l:compStatus[compIndex] = 0
 			endif
 		endfor
 	endfor
 
-	call <SID>updateHighlights(l:rowsStatus, l:colsStatus, l:boxesStatus, l:fieldsStatus)
+	return l:compStatus
 endfunction
 
 function! s:updateHighlights(rowsStatus, colsStatus, boxesStatus, fieldsStatus)
