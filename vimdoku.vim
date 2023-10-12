@@ -18,6 +18,8 @@ function! s:init()
 	let s:boxHighlights = {}
 	let s:dupHighlights = {}
 
+	let s:isValid = 1
+
 	highlight Valid ctermbg=green guibg=green
 	highlight Invalid ctermbg=red guibg=red
 
@@ -119,7 +121,7 @@ endfunction
 function! s:findNextEmptyField(values, ...)
 	let [l:x, l:y] = get(a:, 1, [0, 0])
 
-	while l:x < s:colCount && l:y < s:rowCount && a:values[l:y][l:x] != '#'
+	while l:x < s:colCount && l:y + 1 < s:rowCount && a:values[l:y][l:x] != '#'
 		if l:x + 1 < s:colCount
 			let l:x += 1
 		else
@@ -127,7 +129,7 @@ function! s:findNextEmptyField(values, ...)
 		endif
 	endwhile
 
-	return [l:x, l:y]
+	return a:values[l:y][l:x] == '#' ? [l:x, l:y] : [-1, -1]
 endfunction
 
 function! s:getRowFieldIndexes(rowIndex)
@@ -178,9 +180,9 @@ function! s:validate(values)
 		endfor
 	endfor
 
-	let l:fieldsStatus = {}
+	let l:fieldsStatus = []
 	for i in range(0, s:rowCount*s:colCount - 1)
-		let l:fieldsStatus[i] = 1
+		let l:fieldsStatus = add(l:fieldsStatus, 1)
 	endfor
 
 	" Check horizontally
@@ -205,12 +207,14 @@ function! s:validate(values)
 				\ l:fieldsStatus)
 
 	call <SID>updateHighlights(l:rowsStatus, l:colsStatus, l:boxesStatus, l:fieldsStatus)
+
+	let s:isValid = !(index(l:fieldsStatus, 0) >= 0)
 endfunction
 
 function! s:validateComponent(values, count, indexGenerator, fieldsStatus)
-	let l:compStatus = {}
+	let l:compStatus = []
 	for i in range(0, a:count - 1)
-		let l:compStatus[i] = 1
+		let l:compStatus = add(l:compStatus, 1)
 	endfor
 
 	for compIndex in range(0, a:count - 1)
@@ -328,6 +332,100 @@ function! s:highlightField(index)
 	return [matchaddpos("Invalid", [[l:y, l:x, 1]])]
 endfunction
 
+function! s:getOccurences(values, count, idxMap)
+	let l:occurences = []
+
+	for i in range(0, a:count - 1)
+		let l:occurences = add(l:occurences, {})
+		for v in range(1, 9)
+			let l:occurences[i][v] = 0
+		endfor
+		for [l:x, l:y] in function(a:idxMap)(i)
+			let l:val = a:values[l:y][l:x]
+			if l:val >= 1 && l:val <= 9
+				let l:occurences[i][l:val] = 1
+			endif
+		endfor
+	endfor
+
+	return l:occurences
+endfunction
+
+function! s:getPossibilities(values)
+	let l:rowOccurences = <SID>getOccurences(
+				\ a:values,
+				\ s:rowCount,
+				\ '<SID>getRowFieldIndexes')
+
+	let l:colOccurences = <SID>getOccurences(
+				\ a:values,
+				\ s:colCount,
+				\ '<SID>getColFieldIndexes')
+
+	let l:boxOccurences = <SID>getOccurences(
+				\ a:values,
+				\ s:boxCount,
+				\ '<SID>getBoxFieldIndexes')
+
+	let l:possibilities = []
+	for y in range(0, s:rowCount - 1)
+		let l:possibilities = add(l:possibilities, [])
+		for x in range(0, s:colCount - 1)
+			if a:values[y][x] != '#'
+				let l:possibilities[y] = add(l:possibilities[y], [])
+				continue
+			endif
+			let l:possibilities[y] = add(l:possibilities[y], range(1, 9))
+			call filter(l:possibilities[y][x], 'l:rowOccurences[y][v:val]==0')
+			call filter(l:possibilities[y][x], 'l:colOccurences[x][v:val]==0')
+			call filter(l:possibilities[y][x], 'l:boxOccurences[3*(y/3) + (x/3)][v:val]==0')
+		endfor
+	endfor
+
+	return l:possibilities
+endfunction
+
+function! s:solve(values)
+	let l:possibilities = <SID>getPossibilities(a:values)
+
+	" Find the field with least but non-zero possibilities.
+	let [l:mx, l:my] = [-1, -1]
+	let l:minNumOfPossibilities = 10
+	for y in range(0, s:rowCount - 1)
+		for x in range(0, s:colCount - 1)
+			let l:numOfPossibilities = len(l:possibilities[y][x])
+			if l:numOfPossibilities > 0 && l:numOfPossibilities < l:minNumOfPossibilities
+				let [l:mx, l:my] = [x, y]
+				let l:minNumOfPossibilities = l:numOfPossibilities
+			endif
+		endfor
+	endfor
+
+	if l:minNumOfPossibilities == 10 && s:isValid == 0
+		return 0
+	elseif l:minNumOfPossibilities == 10 && s:isValid == 1 && <SID>findNextEmptyField(a:values) == [-1, -1]
+		return 1
+	else
+		for i in range(1, 9)
+			let a:values[l:my][l:mx] = i
+			call <SID>setFieldValue([l:mx, l:my], i)
+			redraw
+			call <SID>validate(a:values)
+			if s:isValid == 0
+				continue
+			endif
+			let l:ret = <SID>solve(a:values)
+			if l:ret == 1
+				return 1
+			endif
+		endfor
+		call <SID>setFieldValue([l:mx, l:my], '#')
+		redraw
+		return 0
+	endif
+endfunction
+
 call <SID>init()
 
 command Validate call <SID>validate(<SID>getValues())
+command Solve call <SID>solve(<SID>getValues())
