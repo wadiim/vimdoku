@@ -385,8 +385,21 @@ function! s:getPossibilities(values)
 	return l:possibilities
 endfunction
 
-function! s:solve(values)
-	let l:possibilities = <SID>getPossibilities(a:values)
+function! s:updatePossibilities(possibilities, pos, newVal)
+	let l:idxs = []
+	let l:idxs += <SID>getRowFieldIndexes(a:pos[1])
+	let l:idxs += <SID>getColFieldIndexes(a:pos[0])
+	let l:idxs += <SID>getBoxFieldIndexes(3*(a:pos[1] / 3) + (a:pos[0] / 3))
+
+	for [x, y] in l:idxs
+		call filter(a:possibilities[y][x], 'v:val != a:newVal')
+	endfor
+
+	return a:possibilities
+endfunction
+
+function! s:solve(values, ...)
+	let l:possibilities = get(a:, 2, <SID>getPossibilities(a:values))
 
 	" Find the field with least but non-zero possibilities.
 	let [l:mx, l:my] = [-1, -1]
@@ -414,7 +427,7 @@ function! s:solve(values)
 			if s:isValid == 0
 				continue
 			endif
-			let l:ret = <SID>solve(a:values)
+			let l:ret = <SID>solve(a:values, <SID>updatePossibilities(l:possibilities, [l:mx, l:my], i))
 			if l:ret == 1
 				return 1
 			endif
